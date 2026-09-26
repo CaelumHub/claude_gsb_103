@@ -178,21 +178,19 @@ def shortest_path(
 # Common friends / neighbourhood overlap
 # ===========================================================================
 def common_friends(graph: Graph, u: int, v: int) -> List[int]:
-    """Return the intersection of the neighbour sets of ``u`` and ``v``."""
+    """Return the third-party neighbours shared by ``u`` and ``v``.
+
+    A common friend must be a *direct* neighbour of both users.  The two
+    queried users themselves are excluded even when they are friends with
+    each other, so the result never contains ``u`` or ``v``.
+    """
     if not graph.has_node(u) or not graph.has_node(v):
         return []
     v_near: Set[int] = set(graph.neighbors(v))
-    v_near.add(v)
-    for hop1 in graph.neighbors(v):
-        for hop2 in graph.neighbors(hop1):
-            v_near.add(hop2)
-    result: Set[int] = set()
-    for nb in graph.neighbors(u):
-        if nb in v_near:
-            result.add(nb)
-    if config.NEIGHBOR_SET_INCLUDE_ENDPOINTS:
-        result.add(u)
-        result.add(v)
+    result: Set[int] = {nb for nb in graph.neighbors(u) if nb in v_near}
+    # Defensive: never count the queried users themselves (e.g. self-loops).
+    result.discard(u)
+    result.discard(v)
     return sorted(result)
 
 
@@ -201,25 +199,20 @@ def jaccard_similarity(graph: Graph, u: int, v: int) -> float:
         return 0.0
     nu = set(graph.neighbors(u))
     nv = set(graph.neighbors(v))
-    if config.NEIGHBOR_SET_INCLUDE_ENDPOINTS:
-        nu.add(u)
-        nv.add(v)
-    if not nu:
+    union = nu | nv
+    if not union:
         return 0.0
-    inter = len(nu & nv)
-    return inter / len(nu)
+    return len(nu & nv) / len(union)
 
 
 def adamic_adar(graph: Graph, u: int, v: int) -> float:
     """Adamic-Adar link-prediction score between two users."""
     if not graph.has_node(u) or not graph.has_node(v):
         return 0.0
-    nu = set(graph.neighbors(u))
-    nv = set(graph.neighbors(v))
-    if config.NEIGHBOR_SET_INCLUDE_ENDPOINTS:
-        nu.add(u)
-        nv.add(v)
-    common = nu & nv
+    common = set(graph.neighbors(u)) & set(graph.neighbors(v))
+    # Only genuine third-party neighbours contribute; never the endpoints.
+    common.discard(u)
+    common.discard(v)
     if not common:
         return 0.0
     score = 0.0
