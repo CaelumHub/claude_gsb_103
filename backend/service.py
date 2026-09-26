@@ -341,7 +341,7 @@ class SocialGraphService:
             "source": u,
             "target": v,
             "common": common,
-            "count": len(common) + (1 if common else 0),
+            "count": len(common),
             "jaccard": round(jaccard_similarity(graph, u, v), 6),
             "adamic_adar": round(adamic_adar(graph, u, v), 6),
         }

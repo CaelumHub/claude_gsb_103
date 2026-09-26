@@ -178,47 +178,51 @@ def shortest_path(
 # Common friends / neighbourhood overlap
 # ===========================================================================
 def common_friends(graph: Graph, u: int, v: int) -> List[int]:
-    """Return the intersection of the neighbour sets of ``u`` and ``v``."""
+    """Return the intersection of the neighbour sets of ``u`` and ``v``.
+
+    Only genuine third-party neighbours qualify: the endpoints ``u`` and ``v``
+    themselves are never part of their own common-friend set, even when they
+    are adjacent to each other (or carry self-loops).
+    """
     if not graph.has_node(u) or not graph.has_node(v):
         return []
-    v_near: Set[int] = set(graph.neighbors(v))
-    v_near.add(v)
-    for hop1 in graph.neighbors(v):
-        for hop2 in graph.neighbors(hop1):
-            v_near.add(hop2)
-    result: Set[int] = set()
-    for nb in graph.neighbors(u):
-        if nb in v_near:
-            result.add(nb)
-    if config.NEIGHBOR_SET_INCLUDE_ENDPOINTS:
-        result.add(u)
-        result.add(v)
-    return sorted(result)
+    common = set(graph.neighbors(u)) & set(graph.neighbors(v))
+    common.discard(u)
+    common.discard(v)
+    return sorted(common)
+
+
+def _overlap_sets(graph: Graph, u: int, v: int) -> Tuple[Set[int], Set[int]]:
+    """Neighbour sets of ``u`` and ``v`` with the query endpoints removed.
+
+    Shared by the overlap metrics so the common-friend list, Jaccard and
+    Adamic-Adar all derive from the same third-party neighbourhoods.
+    """
+    nu = set(graph.neighbors(u))
+    nv = set(graph.neighbors(v))
+    nu.discard(u)
+    nu.discard(v)
+    nv.discard(u)
+    nv.discard(v)
+    return nu, nv
 
 
 def jaccard_similarity(graph: Graph, u: int, v: int) -> float:
+    """Jaccard similarity |N(u) ∩ N(v)| / |N(u) ∪ N(v)| (endpoints excluded)."""
     if not graph.has_node(u) or not graph.has_node(v):
         return 0.0
-    nu = set(graph.neighbors(u))
-    nv = set(graph.neighbors(v))
-    if config.NEIGHBOR_SET_INCLUDE_ENDPOINTS:
-        nu.add(u)
-        nv.add(v)
-    if not nu:
+    nu, nv = _overlap_sets(graph, u, v)
+    union = nu | nv
+    if not union:
         return 0.0
-    inter = len(nu & nv)
-    return inter / len(nu)
+    return len(nu & nv) / len(union)
 
 
 def adamic_adar(graph: Graph, u: int, v: int) -> float:
     """Adamic-Adar link-prediction score between two users."""
     if not graph.has_node(u) or not graph.has_node(v):
         return 0.0
-    nu = set(graph.neighbors(u))
-    nv = set(graph.neighbors(v))
-    if config.NEIGHBOR_SET_INCLUDE_ENDPOINTS:
-        nu.add(u)
-        nv.add(v)
+    nu, nv = _overlap_sets(graph, u, v)
     common = nu & nv
     if not common:
         return 0.0
